@@ -1,15 +1,15 @@
-'use client'
+'use client';
 
-import { useState, useEffect, useRef } from 'react'
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import Loki from 'lokijs'
+import { useState, useEffect, useRef } from 'react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import Loki from 'lokijs';
 
-import { Tags } from './Tags'
+import { Tags } from './Tags';
 
 let db: Loki;
-let bookmarks: Collection<any>;
+let bookmarks: Collection<Bookmark>;
 
 interface Bookmark {
   name: string;
@@ -20,165 +20,165 @@ interface Bookmark {
 }
 
 export default function Home() {
-  const [newBookmarkName, setNewBookmarkName] = useState('')
-  const [newBookmarkUrl, setNewBookmarkUrl] = useState('')
+  const [newBookmarkName, setNewBookmarkName] = useState('');
+  const [newBookmarkUrl, setNewBookmarkUrl] = useState('');
   const [newTag, setNewTag] = useState('');
-  const [bookmarkList, setBookmarkList] = useState<Bookmark[]>([])
+  const [bookmarkList, setBookmarkList] = useState<Bookmark[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const lokiAdapter = new Loki.LokiLocalStorageAdapter()
+    const lokiAdapter = new Loki.LokiLocalStorageAdapter();
     db = new Loki('bookmarks.db', {
       adapter: lokiAdapter,
       autoload: true,
       autoloadCallback: () => {
-        bookmarks = db.getCollection('bookmarks')
+        bookmarks = db.getCollection('bookmarks');
         if (bookmarks === null) {
-          bookmarks = db.addCollection('bookmarks')
+          bookmarks = db.addCollection('bookmarks');
         }
-        loadBookmarks()
+        loadBookmarks();
       },
       autosave: true,
-      autosaveInterval: 4000
-    })
+      autosaveInterval: 4000,
+    });
 
     return () => {
-      db.close()
-    }
-  }, [])
+      db.close();
+    };
+  }, []);
 
   const loadBookmarks = () => {
     if (bookmarks) {
-      const loadedBookmarks = bookmarks.chain()
+      const loadedBookmarks = bookmarks
+        .chain()
         .find()
         .simplesort('count', { desc: true })
-        .data()
-      setBookmarkList(loadedBookmarks)
+        .data();
+      setBookmarkList(loadedBookmarks);
     }
-  }
+  };
 
   const addBookmark = () => {
     if (newBookmarkName.trim() !== '' && newBookmarkUrl.trim() !== '' && bookmarks) {
       const tags = newTag
         .split(',')
-        .map(tag => tag.trim())
-        .filter(tag => tag !== '')
+        .map((tag) => tag.trim())
+        .filter((tag) => tag !== '');
       bookmarks.insert({
         name: newBookmarkName,
         url: newBookmarkUrl,
         count: 0,
-        tags: tags
-      })
-      db.saveDatabase()
-      setNewBookmarkName('')
-      setNewBookmarkUrl('')
-      setNewTag('')
-      loadBookmarks()
+        tags: tags,
+      });
+      db.saveDatabase();
+      setNewBookmarkName('');
+      setNewBookmarkUrl('');
+      setNewTag('');
+      loadBookmarks();
     }
-  }
+  };
 
-  const deleteBookmark = (id: number) => {
-    if (bookmarks) {
-      bookmarks.removeWhere({ '$loki': id })
-      db.saveDatabase()
-      loadBookmarks()
-    }
-  }
+  const deleteBookmark = (id: number | undefined) => {
+    if (id === undefined || !bookmarks) return;
+    bookmarks.removeWhere({ $loki: id });
+    db.saveDatabase();
+    loadBookmarks();
+  };
 
   const getAllTags = () => {
     if (bookmarks) {
-      const allTags = bookmarks.chain()
+      const allTags = bookmarks
+        .chain()
         .data()
-        .flatMap(bookmark => bookmark.tags || [])
-        .filter(tag => typeof tag === 'string' && tag.trim() !== '') // Filter out empty and non-string tags
-      return Array.from(new Set(allTags))
+        .flatMap((bookmark) => bookmark.tags || [])
+        .filter((tag) => typeof tag === 'string' && tag.trim() !== '');
+      return Array.from(new Set(allTags));
     }
-    return []
-  }
+    return [];
+  };
 
   const handleTagSelect = (tag: string) => {
     if (tag === 'all') {
       setSelectedTags([]);
     } else if (selectedTags.includes(tag)) {
-      setSelectedTags(selectedTags.filter(t => t !== tag));
+      setSelectedTags(selectedTags.filter((t) => t !== tag));
     } else {
       setSelectedTags([...selectedTags, tag]);
     }
   };
 
-  const filteredBookmarks = selectedTags.length > 0
-    ? bookmarkList.filter(bookmark =>
-      selectedTags.every(tag =>
-        Array.isArray(bookmark.tags) && bookmark.tags.includes(tag)
+  const filteredBookmarks =
+    selectedTags.length > 0
+      ? bookmarkList.filter((bookmark) =>
+        selectedTags.every((tag) => Array.isArray(bookmark.tags) && bookmark.tags.includes(tag))
       )
-    )
-    : bookmarkList;
+      : bookmarkList;
 
-  const incrementCounter = (id: number) => {
-    if (bookmarks) {
-      const bookmark = bookmarks.findOne({ '$loki': id })
-      if (bookmark) {
-        bookmark.count = (bookmark.count || 0) + 1
-        bookmarks.update(bookmark)
-        db.saveDatabase()
-        loadBookmarks()
-      }
+  const incrementCounter = (id: number | undefined) => {
+    if (id === undefined || !bookmarks) return;
+
+    const bookmark = bookmarks.findOne({ $loki: id });
+    if (bookmark) {
+      bookmark.count = (bookmark.count || 0) + 1;
+      bookmarks.update(bookmark);
+      db.saveDatabase();
+      loadBookmarks();
     }
-  }
+  };
 
   const exportBookmarks = () => {
     if (bookmarks) {
-      const data = JSON.stringify(bookmarks.data, null, 2)
-      const blob = new Blob([data], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'bookmarks.json'
-      a.click()
-      URL.revokeObjectURL(url)
+      const data = JSON.stringify(bookmarks.data, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'bookmarks.json';
+      a.click();
+      URL.revokeObjectURL(url);
     }
-  }
+  };
 
   const importBookmarks = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+    const file = event.target.files?.[0];
     if (file && bookmarks) {
-      const reader = new FileReader()
+      const reader = new FileReader();
       reader.onload = (e) => {
-        const content = e.target?.result as string
+        const content = e.target?.result as string;
         try {
-          const importedData = JSON.parse(content)
+          const importedData = JSON.parse(content);
 
           if (!Array.isArray(importedData)) {
-            throw new Error('Imported data is not an array')
+            throw new Error('Imported data is not an array');
           }
 
           if (importedData.length === 0) {
-            throw new Error('No bookmarks found in the imported data')
+            throw new Error('No bookmarks found in the imported data');
           }
 
-          bookmarks.clear()
-          importedData.forEach(bookmark => {
+          bookmarks.clear();
+          importedData.forEach((bookmark) => {
             if (bookmark.name && bookmark.url) {
-              const { $loki, meta, ...cleanBookmark } = bookmark
+              const { $loki: _loki, meta: _meta, ...cleanBookmark } = bookmark;
               bookmarks.insert({
                 ...cleanBookmark,
                 count: cleanBookmark.count || 0,
-                tags: cleanBookmark.tags || []
-              })
+                tags: cleanBookmark.tags || [],
+              });
             }
-          })
-          db.saveDatabase()
-          loadBookmarks()
-          alert('Bookmarks imported successfully!')
+          });
+          db.saveDatabase();
+          loadBookmarks();
+          alert('Bookmarks imported successfully!');
         } catch (error) {
-          console.error('Error importing bookmarks:', error)
-          alert(`Error importing bookmarks: ${error.message}. Please check the file format.`)
+          console.error('Error importing bookmarks:', error);
+          alert(`Error importing bookmarks. Please check the file format.`);
         }
-      }
-      reader.readAsText(file)
+      };
+      reader.readAsText(file);
     }
-  }
+  };
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-between p-24">
@@ -240,7 +240,11 @@ export default function Home() {
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={() => deleteBookmark(bookmark.$loki)}
+                    onClick={() => {
+                      if (bookmark.$loki !== undefined) {
+                        deleteBookmark(bookmark.$loki);
+                      }
+                    }}
                   >
                     Delete
                   </Button>
@@ -256,5 +260,5 @@ export default function Home() {
         </CardContent>
       </Card>
     </main>
-  )
+  );
 }
